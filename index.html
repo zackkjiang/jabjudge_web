@@ -276,6 +276,9 @@ function onCall(kind){
 }
 
 /* ---------- persisted address ---------- */
+// default bridge: this account's fixed ngrok domain. A saved address (from the last Connect) takes priority.
+const DEFAULT_WS='wss://semestral-unworthy-rana.ngrok-free.dev/ws';
+$('url').value=DEFAULT_WS;
 try{ const s=localStorage.getItem('jabjudge_ws'); if(s) $('url').value=s; }catch(e){}
 
 /* ---------- conversation ---------- */
