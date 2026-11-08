@@ -114,6 +114,12 @@ button,input{font:inherit;color:inherit}
 .type input::placeholder{color:var(--chalk)}
 .type button{padding:0 18px;border-radius:10px;border:none;background:var(--rope);color:var(--canvas);font-weight:600}
 
+/* wide screens (laptop, projector): keep the phone layout, centered, with the apron around it */
+@media (min-width:560px){
+  html{background:var(--apron)}
+  body{max-width:480px;margin:0 auto;box-shadow:0 0 0 1px #2C4A96,0 20px 60px rgba(5,15,40,.45)}
+}
+
 @media (prefers-reduced-motion:reduce){
   .verdict,.mic{transition:none}
   .verdict.slam span{animation:none}
