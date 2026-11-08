@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1B3C8C">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Jab Judge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;900&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Ring canvas blue, white ropes, red corner. Hits are red because a hit is a point for the red corner. */
+:root{
+  --canvas:#1B3C8C;     /* ring canvas */
+  --apron:#132C6A;      /* darker canvas under the ropes */
+  --rope:#F4F6FA;       /* ropes, primary text */
+  --chalk:#A9B8DD;      /* secondary text */
+  --corner:#E0313B;     /* red corner: hits, talk button */
+  --steel:#C7D0E4;      /* blocked */
+  --motion:#FFC857;     /* arm motion (accelerometer) */
+  --display:'Big Shoulders Display',Impact,'Arial Narrow',sans-serif;
+  --body:'Public Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0}
+body{
+  background:var(--canvas);color:var(--rope);font:400 15px/1.45 var(--body);
+  display:flex;flex-direction:column;overflow:hidden;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+button,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--rope);outline-offset:2px}
+
+/* ---------- header ---------- */
+.top{display:flex;align-items:center;gap:10px;padding:12px 16px 10px;flex:0 0 auto}
+.name{font:900 24px/1 var(--display);letter-spacing:.01em}
+.live{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--chalk)}
+.live i{width:8px;height:8px;border-radius:50%;background:var(--chalk);opacity:.5}
+.live.on{color:var(--rope)}
+.live.on i{background:#4BD37B;opacity:1}
+.setup{margin-left:auto;background:none;border:1px solid var(--chalk);border-radius:999px;
+  padding:5px 14px;font-size:13px;color:var(--rope)}
+
+/* three ropes, the only divider on the page */
+.ropes{flex:0 0 auto;height:11px;margin:0 16px;
+  background:linear-gradient(var(--rope),var(--rope)) 0 0/100% 1px no-repeat,
+             linear-gradient(var(--rope),var(--rope)) 0 5px/100% 1px no-repeat,
+             linear-gradient(var(--rope),var(--rope)) 0 10px/100% 1px no-repeat;opacity:.35}
+
+/* ---------- setup ---------- */
+.panel{display:none;padding:14px 16px;background:var(--apron);flex:0 0 auto}
+.panel.open{display:block}
+.panel label.field{display:block;font-size:13px;color:var(--chalk);margin-bottom:6px}
+.panel input[type=text]{width:100%;padding:10px 12px;border-radius:8px;border:1px solid #3B5AA8;
+  background:var(--canvas);font-size:14px}
+.buttons{display:flex;gap:8px;margin-top:10px}
+.buttons button{flex:1;padding:10px;border-radius:8px;border:1px solid #3B5AA8;background:none;font-weight:600}
+.buttons .go{background:var(--rope);color:var(--canvas);border-color:var(--rope)}
+.checks{display:flex;flex-direction:column;gap:8px;margin-top:12px;font-size:14px}
+.checks label{display:flex;align-items:center;gap:8px}
+.checks input{width:18px;height:18px;accent-color:var(--corner)}
+
+/* ---------- verdict: the one loud thing ---------- */
+.verdict{flex:0 0 auto;margin:12px 16px 0;height:76px;border-radius:10px;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--apron);color:var(--chalk);
+  font:900 22px/1 var(--display);letter-spacing:.02em;overflow:hidden;
+  transition:background .25s ease,color .25s ease}
+.verdict.call{font-size:62px}
+.verdict.hit{background:var(--corner);color:#fff}
+.verdict.blocked{background:var(--steel);color:var(--canvas)}
+.verdict.miss{background:transparent;color:var(--rope);box-shadow:inset 0 0 0 2px var(--rope)}
+.verdict.slam span{display:inline-block;animation:slam .22s cubic-bezier(.2,1.6,.4,1)}
+@keyframes slam{from{transform:scale(1.5);opacity:.2}to{transform:none;opacity:1}}
+
+/* ---------- tally ---------- */
+.tally{flex:0 0 auto;position:relative;display:grid;grid-template-columns:1fr auto;align-items:end;
+  gap:4px 16px;padding:8px 16px 4px}
+.hits{position:relative;font:900 clamp(104px,36vw,176px)/.8 var(--display);
+  font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.hits small{display:block;font:500 14px/1 var(--body);color:var(--chalk);margin-bottom:10px;letter-spacing:0}
+.rate{position:relative;text-align:right;padding-bottom:6px}
+.rate b{display:block;font:700 44px/1 var(--display);font-variant-numeric:tabular-nums}
+.rate span{font-size:13px;color:var(--chalk)}
+.minor{position:relative;grid-column:1/-1;display:flex;gap:22px;padding-top:12px;font-size:14px;color:var(--chalk)}
+.minor b{font:700 22px/1 var(--display);color:var(--rope);margin-right:5px;font-variant-numeric:tabular-nums}
+
+/* ---------- live signals: one lane per sensor ---------- */
+.signals{flex:0 0 auto;position:relative;margin:10px 16px 2px;height:132px;border-radius:10px;background:var(--apron)}
+#wave{position:absolute;inset:0;width:100%;height:100%}
+.lanes{position:absolute;inset:0;display:grid;grid-template-rows:repeat(3,1fr);pointer-events:none}
+.lanes span{padding:5px 9px;font-size:12px;color:var(--chalk)}
+.lanes span i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;vertical-align:0}
+
+/* ---------- conversation ---------- */
+.log{flex:1 1 auto;overflow-y:auto;padding:12px 16px;display:flex;flex-direction:column;gap:10px;
+  -webkit-overflow-scrolling:touch}
+.msg{max-width:84%;padding:10px 13px;border-radius:14px;font-size:15px}
+.msg.coach{align-self:flex-start;background:var(--rope);color:var(--canvas);border-bottom-left-radius:4px}
+.msg.you{align-self:flex-end;background:var(--apron);border-bottom-right-radius:4px}
+.msg.sys{align-self:center;max-width:none;padding:2px;font-size:13px;color:var(--chalk);text-align:center}
+
+/* ---------- ask the coach ---------- */
+.ask{flex:0 0 auto;padding:10px 16px 14px;background:var(--apron)}
+.mic{width:100%;padding:17px;border:none;border-radius:14px;background:var(--corner);color:#fff;
+  font:900 22px/1 var(--display);letter-spacing:.02em;touch-action:none;transition:transform .08s}
+.mic.rec{background:var(--rope);color:var(--corner);transform:scale(.985)}
+.mic:disabled{background:#2C4A96;color:var(--chalk)}
+.type{display:flex;gap:8px;margin-top:8px}
+.type input{flex:1;min-width:0;padding:10px 12px;border-radius:10px;border:1px solid #3B5AA8;background:var(--canvas);font-size:15px}
+.type input::placeholder{color:var(--chalk)}
+.type button{padding:0 18px;border-radius:10px;border:none;background:var(--rope);color:var(--canvas);font-weight:600}
+
+@media (prefers-reduced-motion:reduce){
+  .verdict,.mic{transition:none}
+  .verdict.slam span{animation:none}
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="name">Jab Judge</div>
+  <div class="live" id="live"><i></i><span id="stat">Offline</span></div>
+  <button class="setup" id="gear" aria-expanded="false" aria-controls="panel">Setup</button>
+</header>
+
+<div class="panel" id="panel">
+  <label class="field" for="url">Bridge address</label>
+  <input type="text" id="url" placeholder="wss://your-ngrok-host/ws" autocomplete="off" autocapitalize="off" spellcheck="false">
+  <div class="buttons">
+    <button class="go" id="connect">Connect</button>
+    <button id="disconnect">Disconnect</button>
+  </div>
+  <div class="checks">
+    <label><input type="checkbox" id="phoneVoice" checked> Play the voice on this phone</label>
+    <label><input type="checkbox" id="mutePC"> Mute the computer</label>
+  </div>
+</div>
+
+<div class="ropes" aria-hidden="true"></div>
+
+<div class="verdict" id="verdict" role="status" aria-live="assertive"><span>Waiting for the first punch</span></div>
+
+<section class="tally" aria-label="Score">
+  <div class="hits"><small>Clean hits</small><span id="hits">0</span></div>
+  <div class="rate"><b id="rate">–</b><span>hit rate</span></div>
+  <div class="minor">
+    <div><b id="blocked">0</b>blocked</div>
+    <div><b id="misses">0</b>missed</div>
+    <div><b id="permin">0</b>in the last minute</div>
+  </div>
+</section>
+
+<div class="signals" aria-label="Live sensor signals">
+  <canvas id="wave" aria-hidden="true"></canvas>
+  <div class="lanes" aria-hidden="true">
+    <span><i style="background:var(--rope)"></i>Glove impact</span>
+    <span><i style="background:var(--corner)"></i>Helmet impact</span>
+    <span><i style="background:var(--motion)"></i>Arm motion</span>
+  </div>
+</div>
+
+<div class="ropes" aria-hidden="true"></div>
+
+<div class="log" id="log" aria-live="polite">
+  <div class="msg sys">Open Setup, paste the bridge address, then tap Connect.</div>
+</div>
+
+<div class="ask">
+  <button class="mic" id="mic" disabled>Hold to ask the coach</button>
+  <div class="type">
+    <input id="txt" placeholder="Or type a question" autocomplete="off" aria-label="Question for the coach">
+    <button id="send">Ask</button>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let ws=null, waveG=[], waveH=[], waveA=[], speaking=false, rec=null, recording=false;
+const MIC_IDLE='Hold to ask the coach';
+
+/* ---------- audio: Fish voice comes from the computer; Web Audio needs one tap to unlock ---------- */
+let actx=null, clips={}, callSrc=null, coachSrc=null;
+function unlockAudio(){
+  try{
+    if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)();
+    if(actx.state==='suspended') actx.resume();
+  }catch(e){}
+}
+function b64ToBuf(b64){
+  const bin=atob(b64), u=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i);
+  return u.buffer;
+}
+function decode(b64){
+  return new Promise((ok,bad)=>{
+    if(!actx) return bad('no audio context');
+    actx.decodeAudioData(b64ToBuf(b64), ok, bad);
+  });
+}
+function playBuf(buf, which){
+  if(!actx||!buf) return null;
+  const s=actx.createBufferSource(); s.buffer=buf; s.connect(actx.destination);
+  if(which==='call'){ try{ callSrc&&callSrc.stop(); }catch(e){} callSrc=s; }
+  else{ try{ coachSrc&&coachSrc.stop(); }catch(e){} coachSrc=s; }
+  s.start(); return s;
+}
+async function loadPack(m){
+  clips={};
+  for(const k of Object.keys(m.clips||{})){
+    try{ clips[k]=await decode(m.clips[k]); }catch(e){}
+  }
+  say('sys', Object.keys(clips).length ? 'Voice ready.' : 'No voice clips from the computer, so the phone voice will read the calls.');
+}
+
+/* ---------- verdict strip ---------- */
+const CALL_WORD={HIT:'Hit',BLOCKED:'Blocked',MISS:'Miss'};
+let verdictTimer=null;
+function onCall(kind){
+  const v=$('verdict');
+  v.className='verdict call '+kind.toLowerCase();
+  v.innerHTML='<span>'+CALL_WORD[kind]+'</span>';
+  void v.offsetWidth; v.classList.add('slam');
+  clearTimeout(verdictTimer);
+  verdictTimer=setTimeout(()=>{ v.className='verdict'; v.innerHTML='<span>Last call: '+CALL_WORD[kind]+'</span>'; },1600);
+  if(kind==='HIT' && navigator.vibrate) navigator.vibrate(25);
+  if(!$('phoneVoice').checked) return;
+  if(clips[kind]) playBuf(clips[kind],'call');
+  else speak(CALL_WORD[kind]);
+}
+
+/* ---------- persisted address ---------- */
+try{ const s=localStorage.getItem('jabjudge_ws'); if(s) $('url').value=s; }catch(e){}
+
+/* ---------- conversation ---------- */
+function say(cls, text){
+  const d=document.createElement('div');
+  d.className='msg '+cls; d.textContent=text;
+  $('log').appendChild(d); $('log').scrollTop=$('log').scrollHeight;
+  while($('log').children.length>60) $('log').removeChild($('log').firstChild);
+}
+function speak(text){
+  if(!$('phoneVoice').checked || !window.speechSynthesis) return;
+  if(recording) stopRec(false);
+  speaking=true;
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(text);
+  u.rate=0.95; u.lang='en-US';
+  u.onend=u.onerror=()=>{ speaking=false; };
+  speechSynthesis.speak(u);
+}
+async function playCoach(b64,text){
+  if(!$('phoneVoice').checked) return;
+  if(recording) stopRec(false);                       // mic off while the coach talks
+  if(b64){
+    try{
+      const buf=await decode(b64);
+      speaking=true;
+      const s=playBuf(buf,'coach');
+      if(s) s.onended=()=>{ speaking=false; };
+      return;
+    }catch(e){}
+  }
+  speak(text);
+}
+
+/* ---------- websocket ---------- */
+function setLive(on,label){ $('live').classList.toggle('on',on); $('stat').textContent=label; }
+function connect(){
+  const url=$('url').value.trim();
+  if(!url){ say('sys','Paste the bridge address first, it starts with wss://'); return; }
+  try{ localStorage.setItem('jabjudge_ws',url); }catch(e){}
+  unlockAudio();
+  if(ws) ws.close();
+  setLive(false,'Connecting');
+  ws=new WebSocket(url);
+  ws.onopen=()=>{
+    setLive(true,'Live');
+    $('mic').disabled=false; togglePanel(false);
+    say('sys','Connected. Start sparring.');
+    sendMute();
+  };
+  ws.onclose=()=>{ setLive(false,'Offline'); $('mic').disabled=true; say('sys','Disconnected. Check that the computer and ngrok are still running.'); };
+  ws.onerror=()=>{ setLive(false,'Can’t reach the computer'); };
+  ws.onmessage=e=>{
+    const m=JSON.parse(e.data);
+    if(m.type==='state') paint(m);
+    else if(m.type==='voice_pack') loadPack(m);
+    else if(m.type==='call') onCall(m.kind);
+    else if(m.type==='ai_reply'){ say('coach',m.text); if(!m.audio_pending) playCoach(null,m.text); }
+    else if(m.type==='ai_audio') playCoach(m.audio,m.text);
+    else if(m.type==='coach_pc') say('sys','Asked at the computer: '+m.text);
+  };
+}
+function sendMute(){
+  if(ws && ws.readyState===1) ws.send(JSON.stringify({type:'mute_pc', value:$('mutePC').checked}));
+}
+
+/* ---------- tally ---------- */
+function paint(s){
+  $('hits').textContent=s.hits??0;
+  $('blocked').textContent=s.blocked??0;
+  $('misses').textContent=s.misses??0;
+  $('rate').textContent=s.hit_rate&&s.hit_rate!=='n/a'?s.hit_rate:'–';
+  $('permin').textContent=s.per_min??0;
+  waveG=s.glove||[]; waveH=s.helmet||[]; waveA=s.acc||[];
+  draw();
+}
+const cv=$('wave'), ctx=cv.getContext('2d');
+function fit(){
+  const r=cv.getBoundingClientRect(), dpr=devicePixelRatio||1;
+  cv.width=r.width*dpr; cv.height=r.height*dpr; ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+addEventListener('resize',()=>{ fit(); draw(); });
+// each sensor gets its own lane; piezo lanes span the 0–3.3 V input, the motion lane spans ±3.5 g
+function lane(w,color,idx,lo,hi){
+  const r=cv.getBoundingClientRect(), h=r.height/3, top=idx*h, pad=4;
+  ctx.strokeStyle='rgba(169,184,221,.18)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(0,top+h); ctx.lineTo(r.width,top+h); ctx.stroke();
+  if(w.length<2) return;
+  const x=i=>i/(w.length-1)*r.width;
+  const y=v=>top+pad+(h-2*pad)*(1-(Math.min(Math.max(v,lo),hi)-lo)/(hi-lo));
+  ctx.beginPath(); ctx.moveTo(x(0),y(w[0]));
+  for(let i=1;i<w.length;i++) ctx.lineTo(x(i),y(w[i]));
+  ctx.lineWidth=1.6; ctx.strokeStyle=color; ctx.stroke();
+}
+function draw(){
+  const r=cv.getBoundingClientRect();
+  ctx.clearRect(0,0,r.width,r.height);
+  lane(waveG,'#F4F6FA',0,-0.1,3.4);
+  lane(waveH,'#E0313B',1,-0.1,3.4);
+  lane(waveA,'#FFC857',2,-3.5,3.5);
+}
+
+/* ---------- speech in ---------- */
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+if(SR){
+  rec=new SR(); rec.lang='en-US'; rec.continuous=false; rec.interimResults=false;
+  rec.onresult=e=>{ const t=e.results[0][0].transcript.trim(); if(t) ask(t); };
+  rec.onerror=e=>{ if(e.error!=='aborted') say('sys','The microphone stopped ('+e.error+'). Try again or type the question.'); };
+  rec.onend=()=>{ recording=false; $('mic').classList.remove('rec'); $('mic').textContent=MIC_IDLE; };
+}else{
+  $('mic').textContent='Voice input isn’t available here, type below';
+}
+function startRec(){
+  unlockAudio();
+  if(!rec||recording) return;
+  if(speaking){ speechSynthesis.cancel(); try{ coachSrc&&coachSrc.stop(); }catch(e){} speaking=false; }
+  try{ rec.start(); recording=true; $('mic').classList.add('rec'); $('mic').textContent='Listening, let go to send'; }catch(e){}
+}
+function stopRec(process){
+  if(!rec||!recording) return;
+  recording=false;
+  if(process) rec.stop(); else rec.abort();
+  $('mic').classList.remove('rec'); $('mic').textContent=MIC_IDLE;
+}
+function ask(text){
+  say('you',text);
+  if(ws && ws.readyState===1) ws.send(JSON.stringify({type:'speech',text}));
+  else say('sys','Not connected yet. Open Setup and tap Connect.');
+}
+
+/* ---------- wiring ---------- */
+function togglePanel(open){
+  const p=$('panel'), o=open??!p.classList.contains('open');
+  p.classList.toggle('open',o); $('gear').setAttribute('aria-expanded',o);
+}
+$('mic').addEventListener('pointerdown',e=>{e.preventDefault();startRec();});
+$('mic').addEventListener('pointerup',e=>{e.preventDefault();stopRec(true);});
+$('mic').addEventListener('pointercancel',()=>stopRec(false));
+$('mic').addEventListener('pointerleave',()=>{ if(recording) stopRec(true); });
+$('send').onclick=()=>{ const v=$('txt').value.trim(); if(v){ unlockAudio(); ask(v); $('txt').value=''; } };
+$('txt').addEventListener('keydown',e=>{ if(e.key==='Enter') $('send').click(); });
+$('gear').onclick=()=>togglePanel();
+$('connect').onclick=connect;
+$('disconnect').onclick=()=>{ if(ws) ws.close(); };
+$('mutePC').onchange=sendMute;
+
+fit(); draw();
+if(!$('url').value) togglePanel(true);
+</script>
+</body>
+</html>
