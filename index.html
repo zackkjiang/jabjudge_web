@@ -25,10 +25,12 @@
   --body:'Public Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;margin:0}
-body{
-  background:var(--canvas);color:var(--rope);font:400 15px/1.45 var(--body);
-  display:flex;flex-direction:column;overflow:hidden;
+html,body{margin:0}
+body{background:var(--canvas);color:var(--rope);font:400 15px/1.45 var(--body);overflow-x:hidden}
+/* the app fills the screen; if the screen is too short for everything, it grows and the page scrolls */
+.app{
+  min-height:100vh;min-height:100dvh;background:var(--canvas);
+  display:flex;flex-direction:column;
   padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 button,input{font:inherit;color:inherit}
@@ -96,8 +98,14 @@ button,input{font:inherit;color:inherit}
 .lanes span i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;vertical-align:0}
 
 /* ---------- conversation ---------- */
-.log{flex:1 1 auto;overflow-y:auto;padding:12px 16px;display:flex;flex-direction:column;gap:10px;
+.log{flex:1 1 0;min-height:96px;overflow-y:auto;padding:12px 16px;display:flex;flex-direction:column;gap:10px;
   -webkit-overflow-scrolling:touch}
+.msg.sys:first-child{margin-top:auto}
+/* slim scrollbars that match the canvas instead of the grey system ones */
+html,.log{scrollbar-width:thin;scrollbar-color:#3B5AA8 transparent}
+html::-webkit-scrollbar,.log::-webkit-scrollbar{width:6px}
+html::-webkit-scrollbar-thumb,.log::-webkit-scrollbar-thumb{background:#3B5AA8;border-radius:3px}
+html::-webkit-scrollbar-track,.log::-webkit-scrollbar-track{background:transparent}
 .msg{max-width:84%;padding:10px 13px;border-radius:14px;font-size:15px}
 .msg.coach{align-self:flex-start;background:var(--rope);color:var(--canvas);border-bottom-left-radius:4px}
 .msg.you{align-self:flex-end;background:var(--apron);border-bottom-right-radius:4px}
@@ -116,8 +124,8 @@ button,input{font:inherit;color:inherit}
 
 /* wide screens (laptop, projector): keep the phone layout, centered, with the apron around it */
 @media (min-width:560px){
-  html{background:var(--apron)}
-  body{max-width:480px;margin:0 auto;box-shadow:0 0 0 1px #2C4A96,0 20px 60px rgba(5,15,40,.45)}
+  body{background:var(--apron)}
+  .app{max-width:480px;margin:0 auto;box-shadow:0 0 0 1px #2C4A96,0 20px 60px rgba(5,15,40,.45)}
 }
 
 @media (prefers-reduced-motion:reduce){
@@ -127,6 +135,7 @@ button,input{font:inherit;color:inherit}
 </style>
 </head>
 <body>
+<div class="app">
 
 <header class="top">
   <div class="name">Jab Judge</div>
@@ -182,6 +191,8 @@ button,input{font:inherit;color:inherit}
     <input id="txt" placeholder="Or type a question" autocomplete="off" aria-label="Question for the coach">
     <button id="send">Ask</button>
   </div>
+</div>
+
 </div>
 
 <script>
